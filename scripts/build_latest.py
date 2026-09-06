@@ -110,6 +110,23 @@ def compare_categories(today_cats: list, prev_cats: list) -> dict:
         prev_urls = prev_index.get(key, {})
         today_books = cat.get("books", [])
 
+        if not today_books and prev_urls:
+            # 当日 0 本书几乎必然是抓取/抽取失败（正常榜单总有书），
+            # 照常对比会把前一日书籍全部误判为掉榜，污染趋势与 AI 分析
+            print(f"  ⚠️  {key} 当日 0 本书，跳过趋势对比")
+            trends[key] = {
+                "new_count": 0,
+                "dropped_count": 0,
+                "new_books": [],
+                "dropped_books": [],
+                "top_risers": [],
+                "top_fallers": [],
+                "reads_growth": [],
+                "data_missing": True,
+                "summary": "当日数据缺失，跳过趋势对比。",
+            }
+            continue
+
         new_books = []
         dropped_books = []
         risers = []
@@ -839,6 +856,8 @@ def is_rule_summary(summary: str) -> bool:
         return True
     if summary == "首日数据，暂无趋势对比。":
         return True
+    if summary == "当日数据缺失，跳过趋势对比。":
+        return True
     # 规则摘要一般 < 150 字，用分号分隔，无换行
     if len(summary) < 150 and "；" in summary and "\n" not in summary:
         return True
@@ -874,6 +893,10 @@ def generate_ai_summaries(categories: list, trends: dict,
     for cat in categories:
         key = cat_key(cat)
         if key not in trends:
+            continue
+
+        # 数据缺失的分类没有可分析内容，跳过 AI 生成，保留缺数据标记
+        if trends[key].get("data_missing"):
             continue
 
         if not force:
@@ -1056,6 +1079,12 @@ def main():
         print(f"❌ 快照内嵌日期字段非法: {latest_date!r}")
         sys.exit(1)
     print(f"目标快照: {os.path.basename(latest_path)} ({latest_date})")
+
+    # 全空快照几乎必然是站点改版导致的全量抓取失败；中止构建，
+    # 避免用空数据覆盖现有 latest_ranks.json / 静态 API / 趋势归档
+    if not latest_data.get("categories"):
+        print("❌ 目标快照无任何分类数据（疑似全量抓取失败），中止构建")
+        sys.exit(1)
 
     # 加载前一天的快照（如果有）
     prev_data = None

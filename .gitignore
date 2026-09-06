@@ -1,2 +1,9 @@
 **/.DS_Store
 .DS_Store
+
+# Python 运行产物
+__pycache__/
+*.pyc
+
+# 爬虫断点续抓状态（每日运行时临时生成，无需入库）
+data/task_state_*.json

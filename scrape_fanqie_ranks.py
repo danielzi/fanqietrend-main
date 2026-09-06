@@ -129,8 +129,14 @@ def run_scraper(limit=30, sleep_sec=5):
                 page.locator(f"a[href='{cat_href}']").click()
                 time.sleep(2) # 等待 SPA 页面骨架和组件请求的动画渲染完毕
                 page.wait_for_selector('a[href^="/page/"]', timeout=5000)
+                # 校验确实已跳转到目标分类，防止点击静默失效后抽到上一分类的数据
+                if cat_href not in page.url:
+                    raise RuntimeError(f"页面未跳转到目标分类，当前仍为: {page.url}")
             except Exception as e:
-                print(f"切换分类出错或加载超时 {cat_name}: {e}")
+                # 此时页面停留在上一分类，继续抽取会张冠李戴；跳过本分类且不记录
+                # 完成状态，断点续抓机制会在下次运行时自动重试
+                print(f"⚠️ 切换分类出错或加载超时，跳过 [{cat_channel}] {cat_name}: {e}")
+                continue
             
             # Scroll to load top ~30 books
             for _ in range(3):
@@ -244,6 +250,12 @@ def run_scraper(limit=30, sleep_sec=5):
                     "url": "https://fanqienovel.com" + b.get("url", "")
                 })
             
+            if not category_books:
+                # 0 本书几乎必然是页面结构变化或加载失败，而非真实空榜；
+                # 不写入也不标记完成，避免污染趋势，下次运行自动重试
+                print(f"⚠️ [{cat_channel}] {cat_name} 抽取到 0 本书，疑似页面结构变化，已跳过（下次运行将重试）")
+                continue
+
             # 收集分类数据到内存，并增量写入 JSON
             all_categories.append({
                 "name": cat_name,
