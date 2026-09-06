@@ -262,6 +262,27 @@ input:focus-visible {
     color: #087f5b;
 }
 
+/* 侧边栏频道分组标签（女频/男频） */
+.category-nav li.channel-label {
+    min-height: 0;
+    margin: 16px 0 6px;
+    padding: 0 10px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    cursor: default;
+    font-size: 0.68rem;
+    font-weight: 760;
+    letter-spacing: 0.14em;
+}
+
+.category-nav li.channel-label:hover {
+    background: none;
+    border-color: transparent;
+    color: var(--text-muted);
+    transform: none;
+}
+
 /* ===== Main Layout ===== */
 .main-content {
     flex: 1;
@@ -1327,6 +1348,16 @@ input:focus-visible {
     background: var(--accent);
     color: var(--accent-on);
     box-shadow: 0 10px 20px rgba(240, 79, 56, 0.16);
+}
+
+/* 趋势页分类按钮的频道分组标签 */
+.chip-group-label {
+    flex-basis: 100%;
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 760;
+    letter-spacing: 0.14em;
 }
 
 .trend-grid {

@@ -1,9 +1,11 @@
 {
   "type": "女频悬疑",
+  "channel": "女频",
   "date": "2026-09-06",
   "prev_date": "2026-09-05",
   "category": {
     "name": "女频悬疑",
+    "channel": "女频",
     "trend": {
       "new_count": 4,
       "dropped_count": 4,
@@ -241,6 +243,7 @@
   "categories": [
     {
       "name": "女频悬疑",
+      "channel": "女频",
       "trend": {
         "new_count": 4,
         "dropped_count": 4,

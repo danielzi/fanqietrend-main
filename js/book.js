@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dateIndex = await fetchJson(`data/dates.json?${cacheBuster}`);
             const dates = (dateIndex.dates || []).slice().sort().slice(-maxDays);
             const snapshots = await Promise.all(
-                dates.map(date => fetchJson(`${snapshotUrl(date)}?${cacheBuster}`).catch(() => null))
+                dates.map(date => fetchSnapshotByDate(date).catch(() => null))
             );
             const records = collectBookRecords(bookId, bookTitle, dates, snapshots);
 
@@ -39,8 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function snapshotUrl(date) {
-        return `data/fanqie_female_new_ranks_${date.replace(/-/g, '')}.json`;
+    // 2026-09 起为全频道快照；更早的历史日期只有旧版女频快照，依次回退
+    function fetchSnapshotByDate(date) {
+        const urls = [
+            `data/fanqie_all_new_ranks_${date.replace(/-/g, '')}.json?${cacheBuster}`,
+            `data/fanqie_female_new_ranks_${date.replace(/-/g, '')}.json?${cacheBuster}`
+        ];
+        return urls.reduce((chain, url) => chain.catch(() => fetchJson(url)), Promise.reject());
     }
 
     function fetchJson(url) {
@@ -61,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!bookId && book.title !== bookTitle) return;
                     records.push({
                         date,
-                        category: cat.name,
+                        category: cat.channel === '男频' ? `男频·${cat.name}` : cat.name,
                         rank: index + 1,
                         readsLabel: book.reads || '未知',
                         readsValue: parseReads(book.reads),

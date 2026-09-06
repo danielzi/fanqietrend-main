@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ========== Category key ==========
+    // 女频沿用纯分类名（兼容历史数据），男频加前缀区分同名分类（科幻末世/游戏体育/悬疑脑洞）
+    function categoryKey(cat) {
+        return cat.channel === '男频' ? '男频·' + cat.name : cat.name;
+    }
+
     // ========== Mobile menu ==========
     let overlay = document.createElement('div');
     overlay.className = 'sidebar-overlay';
@@ -213,8 +219,23 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // 2026-09 起为全频道快照；更早的历史日期只有旧版女频快照，依次回退
+    function fetchSnapshot(fileDateStr) {
+        const urls = [
+            `data/fanqie_all_new_ranks_${fileDateStr}.json?${cacheBuster}`,
+            `data/fanqie_female_new_ranks_${fileDateStr}.json?${cacheBuster}`
+        ];
+        return urls.reduce((chain, url) =>
+            chain.catch(() => fetch(url).then(r => {
+                if (!r.ok) throw new Error('No snapshot: ' + url);
+                return r.json();
+            })),
+            Promise.reject()
+        );
+    }
+
     function loadDateData(dateStr) {
-        // dateStr = "YYYY-MM-DD", file = fanqie_female_new_ranks_YYYYMMDD.json
+        // dateStr = "YYYY-MM-DD", file = fanqie_all_new_ranks_YYYYMMDD.json (旧日期回退 female 文件)
         const fileDateStr = dateStr.replace(/-/g, '');
         const isLatest = currentDateIndex === availableDates.length - 1;
 
@@ -227,23 +248,26 @@ document.addEventListener('DOMContentLoaded', () => {
         // Show loading state
         waterfall.innerHTML = '<p style="color:var(--text-muted);padding:20px;">加载中...</p>';
 
-        const snapshotUrl = `data/fanqie_female_new_ranks_${fileDateStr}.json?${cacheBuster}`;
         const trendUrl = `data/trends/${dateStr}.json?${cacheBuster}`;
 
         // Load snapshot + trends in parallel
         Promise.all([
-            fetch(snapshotUrl).then(r => r.ok ? r.json() : Promise.reject('No snapshot')),
+            fetchSnapshot(fileDateStr),
             fetch(trendUrl).then(r => r.ok ? r.json() : null).catch(() => null)
         ]).then(([snapshot, trendData]) => {
             // Build a data object in the same shape as latest_ranks.json
             const combined = {
                 date: snapshot.date,
                 prev_date: trendData ? trendData.prev_date : '',
-                categories: snapshot.categories.map(cat => ({
-                    name: cat.name,
-                    trend: trendData && trendData.trends ? (trendData.trends[cat.name] || {}) : {},
-                    books: cat.books || []
-                }))
+                categories: snapshot.categories.map(cat => {
+                    const keyed = Object.assign({}, cat, { channel: cat.channel || '女频' });
+                    return {
+                        name: keyed.name,
+                        channel: keyed.channel,
+                        trend: trendData && trendData.trends ? (trendData.trends[categoryKey(keyed)] || {}) : {},
+                        books: keyed.books || []
+                    };
+                })
             };
             allData = combined;
             applyData(combined);
@@ -295,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCategories();
 
         // Try to restore previously selected category, otherwise pick first
-        const categoryExists = savedCategory && data.categories.some(c => c.name === savedCategory);
+        const categoryExists = savedCategory && data.categories.some(c => categoryKey(c) === savedCategory);
         if (categoryExists) {
             selectCategory(savedCategory);
             // Also update sidebar active state
@@ -303,16 +327,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.classList.toggle('active', el.dataset.category === savedCategory);
             });
         } else if (data.categories.length > 0) {
-            selectCategory(data.categories[0].name);
+            selectCategory(categoryKey(data.categories[0]));
         }
     }
 
     // ========== Render sidebar categories ==========
     function renderCategories() {
         categoryList.innerHTML = '';
+        let lastChannel = '';
         allData.categories.forEach((cat, i) => {
+            const key = categoryKey(cat);
+
+            // 频道分组标签
+            if (cat.channel && cat.channel !== lastChannel) {
+                lastChannel = cat.channel;
+                const label = document.createElement('li');
+                label.className = 'channel-label';
+                label.textContent = cat.channel;
+                categoryList.appendChild(label);
+            }
+
             const li = document.createElement('li');
-            li.dataset.category = cat.name;
+            li.dataset.category = key;
 
             const nameSpan = document.createElement('span');
             nameSpan.textContent = cat.name;
@@ -328,14 +364,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Mark active: either the saved category or first item
-            if ((currentCategory && cat.name === currentCategory) || (!currentCategory && i === 0)) {
+            if ((currentCategory && key === currentCategory) || (!currentCategory && i === 0)) {
                 li.classList.add('active');
             }
 
             li.addEventListener('click', () => {
                 document.querySelectorAll('#category-list li').forEach(el => el.classList.remove('active'));
                 li.classList.add('active');
-                selectCategory(cat.name);
+                selectCategory(key);
                 // Close mobile sidebar
                 sidebar.classList.remove('open');
                 overlay.classList.remove('show');
@@ -346,11 +382,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ========== Select a category ==========
-    function selectCategory(categoryName) {
-        currentCategory = categoryName; // persist selection
-        categoryTitle.textContent = categoryName;
-        const cat = allData.categories.find(c => c.name === categoryName);
+    function selectCategory(keyStr) {
+        const cat = allData.categories.find(c => categoryKey(c) === keyStr);
         if (!cat) return;
+        currentCategory = keyStr; // persist selection
+        categoryTitle.textContent = keyStr;
         renderTrend(cat);
         renderBooks(cat);
     }

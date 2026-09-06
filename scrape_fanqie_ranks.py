@@ -1,8 +1,22 @@
 import os
+import re
 import json
 import time
 from datetime import datetime
 from playwright.sync_api import sync_playwright
+
+# 榜单 URL 规律: /rank/{频道}_{榜型}_{分类ID}
+# 频道: 女频=0, 男频=1; 榜型: 新书榜=1, 阅读榜=2
+CHANNEL_FEMALE = "女频"
+CHANNEL_MALE = "男频"
+# 男频分类在趋势数据/API 文件名中加前缀，避免与女频同名分类（科幻末世/游戏体育/悬疑脑洞）冲突
+MALE_KEY_PREFIX = "男频·"
+
+def category_key(channel: str, name: str) -> str:
+    """分类唯一键：女频沿用纯分类名（兼容历史数据），男频加前缀。"""
+    if channel == CHANNEL_MALE:
+        return f"{MALE_KEY_PREFIX}{name}"
+    return name
 
 START_CODE = 58344  # 0xE3E8
 CHAR_SEQUENCE = [
@@ -29,9 +43,12 @@ OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 def run_scraper(limit=30, sleep_sec=5):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     date_str = datetime.now().strftime("%Y%m%d")
-    output_file = os.path.join(OUTPUT_DIR, f"fanqie_female_new_ranks_{date_str}.json")
+    # date_str 会拼进输出文件路径，做防御性校验（当前 strftime 恒为 8 位数字）
+    if not re.fullmatch(r"\d{8}", date_str):
+        raise ValueError(f"非法的日期字符串: {date_str!r}")
+    output_file = os.path.join(OUTPUT_DIR, f"fanqie_all_new_ranks_{date_str}.json")
     state_file = os.path.join(OUTPUT_DIR, f"task_state_{date_str}.json")
-    
+
     # ------------- 状态恢复逻辑 -------------
     completed_cats = []
     all_categories = []  # 收集所有分类数据
@@ -51,7 +68,7 @@ def run_scraper(limit=30, sleep_sec=5):
             except:
                 pass
     # ----------------------------------------
-    
+
     with sync_playwright() as p:
         if os.environ.get("GITHUB_ACTIONS"):
             browser = p.chromium.launch(headless=True)
@@ -62,36 +79,51 @@ def run_scraper(limit=30, sleep_sec=5):
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = context.new_page()
-        
+
         # 先访问新书榜的基准前缀页面，以此为入口模拟人工作业
         init_url = "https://fanqienovel.com/rank/0_1_1139"
         print(f"[{datetime.now().strftime('%H:%M:%S')}] 正在初始化并访问基础榜单页：{init_url}")
         page.goto(init_url, wait_until="load", timeout=15000)
         page.wait_for_selector('a[href^="/page/"]', timeout=5000)
-        
-        # 动态解析页面左侧拥有的所有类别目录 (通过匹配对应的榜单路由规律)
+
+        # 该页面服务端渲染了全部频道的榜单入口链接。
+        # 只取新书榜（URL 中段为 _1_），同时覆盖男频(1_1_)与女频(0_1_)的全部分类
         categories_js = """
         () => {
-            return Array.from(document.querySelectorAll('a'))
-                .filter(a => a.href.includes('/rank/0_1_'))
-                .map(a => ({
+            const seen = new Set();
+            const results = [];
+            document.querySelectorAll('a[href^="/rank/"]').forEach(a => {
+                const href = a.getAttribute('href');
+                const m = href.match(/^\\/rank\\/([01])_1_(\\d+)$/);
+                if (!m || seen.has(href)) return;
+                seen.add(href);
+                results.push({
                     name: a.innerText.trim(),
-                    href: a.getAttribute('href')
-                }));
+                    href: href,
+                    channel: m[1] === '1' ? '男频' : '女频'
+                });
+            });
+            return results;
         }
         """
         categories = page.evaluate(categories_js)
-        print(f"✅ 成功自适应提取到 {len(categories)} 个分类标签。开始全量模拟点击抓取下级数据...")
-        
+        # 女频排在前面（与历史数据顺序一致），男频追加在后
+        categories.sort(key=lambda c: 0 if c["channel"] == CHANNEL_FEMALE else 1)
+        female_count = sum(1 for c in categories if c["channel"] == CHANNEL_FEMALE)
+        print(f"✅ 成功自适应提取到 {len(categories)} 个新书榜分类"
+              f"（女频 {female_count} + 男频 {len(categories) - female_count}）。开始全量模拟点击抓取下级数据...")
+
         for cat in categories:
             cat_name = cat["name"]
+            cat_channel = cat["channel"]
             cat_href = cat["href"]
-            
-            if cat_name in completed_cats:
-                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏭️ 跳过今日已经完成抓取的类别：{cat_name}")
+            cat_id = category_key(cat_channel, cat_name)
+
+            if cat_id in completed_cats:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] ⏭️ 跳过今日已经完成抓取的类别：{cat_id}")
                 continue
-                
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] 模拟点击执行类别切换 -> {cat_name}")
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 模拟点击执行类别切换 -> [{cat_channel}] {cat_name}")
             try:
                 # 使用 Playwright 模拟真实的人为鼠标定位与点击跳转分类
                 page.locator(f"a[href='{cat_href}']").click()
@@ -215,9 +247,10 @@ def run_scraper(limit=30, sleep_sec=5):
             # 收集分类数据到内存，并增量写入 JSON
             all_categories.append({
                 "name": cat_name,
+                "channel": cat_channel,
                 "books": category_books
             })
-            
+
             # 每完成一个分类就写入 JSON（防止中断丢数据）
             snapshot = {
                 "date": datetime.now().strftime('%Y-%m-%d'),
@@ -225,21 +258,21 @@ def run_scraper(limit=30, sleep_sec=5):
             }
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(snapshot, f, ensure_ascii=False, indent=2)
-            
+
             # 更新状态记录
-            completed_cats.append(cat_name)
+            completed_cats.append(cat_id)
             with open(state_file, "w", encoding="utf-8") as f:
                 json.dump({"completed": completed_cats}, f, ensure_ascii=False)
-                
-            print(f"成功抓取 {cat_name} 类别的前 {len(category_books)} 本书，且进度已存档。等待 {sleep_sec} 秒防拦截...")
-            
+
+            print(f"成功抓取 [{cat_channel}] {cat_name} 类别的前 {len(category_books)} 本书，且进度已存档。等待 {sleep_sec} 秒防拦截...")
+
             # 保护防封禁机制
             time.sleep(sleep_sec)
-        
+
         browser.close()
-        
-    print(f"\n✅ 当日选定类目任务已完毕或刷新！数据源：{output_file}")
+
+    print(f"\n✅ 当日全频道新书榜任务已完毕或刷新！数据源：{output_file}")
 
 if __name__ == "__main__":
-    print("开始执行番茄女频新书榜抓取计划...")
+    print("开始执行番茄全频道（男频+女频）新书榜抓取计划...")
     run_scraper(limit=30, sleep_sec=5)

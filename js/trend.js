@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheBuster = `v=${Math.floor(Date.now() / 600000)}`;
 
     let categories = [];
+    let categoryChannelMap = {}; // 分类键 -> 频道
     let trendRows = [];
     let latestData = null;
     let marketSummaryData = null;
@@ -19,6 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: '年代民国', categories: ['年代', '民国言情'] },
         { name: '娱乐星光', categories: ['星光璀璨'] },
         { name: '游戏体育', categories: ['游戏体育'] },
+        // 男频赛道（分类键带男频·前缀）
+        { name: '男频都市热血', categories: ['男频·都市日常', '男频·都市修真', '男频·都市高武', '男频·都市种田', '男频·都市脑洞', '男频·战神赘婿'] },
+        { name: '男频玄幻奇幻', categories: ['男频·传统玄幻', '男频·玄幻脑洞', '男频·西方奇幻'] },
+        { name: '男频仙侠', categories: ['男频·东方仙侠'] },
+        { name: '男频历史军旅', categories: ['男频·历史古代', '男频·历史脑洞', '男频·抗战谍战'] },
+        { name: '男频科幻悬疑', categories: ['男频·科幻末世', '男频·悬疑脑洞', '男频·悬疑灵异'] },
+        { name: '男频衍生竞技', categories: ['男频·动漫衍生', '男频·男频衍生', '男频·游戏体育'] },
     ];
 
     const els = {
@@ -67,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             selectedCategory = getInitialCategory();
+            buildChannelMap();
             renderCategoryButtons();
             bindEvents();
             render();
@@ -76,12 +85,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 女频沿用纯分类名（兼容历史数据），男频加前缀区分同名分类
+    function categoryKey(cat) {
+        return cat.channel === '男频' ? '男频·' + cat.name : cat.name;
+    }
+
+    function buildChannelMap() {
+        categoryChannelMap = {};
+        const cats = latestData && latestData.categories ? latestData.categories : [];
+        cats.forEach(cat => {
+            categoryChannelMap[categoryKey(cat)] = cat.channel || '女频';
+        });
+    }
+
     async function loadCategoriesFallback() {
         const latest = await fetchJson(`data/latest_ranks.json?${cacheBuster}`);
-        return (latest.categories || []).map(cat => cat.name);
+        latestData = latest;
+        return (latest.categories || []).map(cat => categoryKey(cat));
     }
 
     function fetchJson(url) {
+        // 仅允许站内 data/、api/ 相对路径，拒绝绝对 URL，防止被注入外部请求
+        if (!/^(data|api)\//.test(url)) {
+            return Promise.reject(new Error('Blocked non-relative data URL: ' + url));
+        }
         return fetch(url).then(response => {
             if (!response.ok) throw new Error(`Failed to load ${url}`);
             return response.json();
@@ -106,10 +133,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCategoryButtons() {
-        categoryButtons.innerHTML = categories.map(name => `
-            <button class="category-chip${name === selectedCategory ? ' active' : ''}" type="button" data-type="${escapeAttr(name)}">
-                ${escapeHtml(name)}
-            </button>
+        // 按频道分组渲染分类按钮
+        const groups = [];
+        let lastChannel = '';
+        categories.forEach(key => {
+            const channel = categoryChannelMap[key] || '女频';
+            if (channel !== lastChannel) {
+                lastChannel = channel;
+                groups.push({ channel, keys: [] });
+            }
+            groups[groups.length - 1].keys.push(key);
+        });
+
+        categoryButtons.innerHTML = groups.map(group => `
+            <div class="chip-group-label">${escapeHtml(group.channel)}</div>
+            ${group.keys.map(name => `
+                <button class="category-chip${name === selectedCategory ? ' active' : ''}" type="button" data-type="${escapeAttr(name)}">
+                    ${escapeHtml(name)}
+                </button>
+            `).join('')}
         `).join('');
 
         categoryButtons.querySelectorAll('.category-chip').forEach(btn => {
@@ -293,7 +335,9 @@ document.addEventListener('DOMContentLoaded', () => {
             '年代', '七零', '八零', '军婚', '豪门', '总裁', '真假千金', '先婚后爱', '追妻',
             '甜宠', '双洁', '强制爱', '无CP', '末世', '废土', '天灾', '囤货', '异能',
             '国运', '星际', '修仙', '玄学', '无限流', '悬疑', '直播', '综艺', '娱乐圈',
-            '校园', '暗恋', '青梅竹马', '民国', '兽世', '远古', '基建'
+            '校园', '暗恋', '青梅竹马', '民国', '兽世', '远古', '基建',
+            '赘婿', '战神', '神豪', '高武', '修真', '仙侠', '长生', '苟道',
+            '兵王', '谍战', '御兽', '签到'
         ];
         const scoreMap = new Map(keywords.map(name => [name, { name, count: 0, categories: new Set() }]));
 

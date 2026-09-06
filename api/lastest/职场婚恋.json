@@ -1,9 +1,11 @@
 {
   "type": "职场婚恋",
+  "channel": "女频",
   "date": "2026-09-06",
   "prev_date": "2026-09-05",
   "category": {
     "name": "职场婚恋",
+    "channel": "女频",
     "trend": {
       "new_count": 2,
       "dropped_count": 3,
@@ -227,6 +229,7 @@
   "categories": [
     {
       "name": "职场婚恋",
+      "channel": "女频",
       "trend": {
         "new_count": 2,
         "dropped_count": 3,

@@ -4,6 +4,7 @@
   "categories": [
     {
       "name": "古风世情",
+      "channel": "女频",
       "trend": {
         "new_count": 3,
         "dropped_count": 2,
@@ -231,6 +232,7 @@
     },
     {
       "name": "科幻末世",
+      "channel": "女频",
       "trend": {
         "new_count": 3,
         "dropped_count": 3,
@@ -462,6 +464,7 @@
     },
     {
       "name": "游戏体育",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -675,6 +678,7 @@
     },
     {
       "name": "女频衍生",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -892,6 +896,7 @@
     },
     {
       "name": "玄幻言情",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -1113,6 +1118,7 @@
     },
     {
       "name": "种田",
+      "channel": "女频",
       "trend": {
         "new_count": 3,
         "dropped_count": 3,
@@ -1344,6 +1350,7 @@
     },
     {
       "name": "年代",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -1565,6 +1572,7 @@
     },
     {
       "name": "现言脑洞",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -1786,6 +1794,7 @@
     },
     {
       "name": "宫斗宅斗",
+      "channel": "女频",
       "trend": {
         "new_count": 0,
         "dropped_count": 0,
@@ -2000,6 +2009,7 @@
     },
     {
       "name": "悬疑脑洞",
+      "channel": "女频",
       "trend": {
         "new_count": 2,
         "dropped_count": 2,
@@ -2226,6 +2236,7 @@
     },
     {
       "name": "古言脑洞",
+      "channel": "女频",
       "trend": {
         "new_count": 2,
         "dropped_count": 2,
@@ -2452,6 +2463,7 @@
     },
     {
       "name": "快穿",
+      "channel": "女频",
       "trend": {
         "new_count": 3,
         "dropped_count": 3,
@@ -2683,6 +2695,7 @@
     },
     {
       "name": "青春甜宠",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,
@@ -2904,6 +2917,7 @@
     },
     {
       "name": "星光璀璨",
+      "channel": "女频",
       "trend": {
         "new_count": 0,
         "dropped_count": 0,
@@ -3118,6 +3132,7 @@
     },
     {
       "name": "女频悬疑",
+      "channel": "女频",
       "trend": {
         "new_count": 4,
         "dropped_count": 4,
@@ -3354,6 +3369,7 @@
     },
     {
       "name": "职场婚恋",
+      "channel": "女频",
       "trend": {
         "new_count": 2,
         "dropped_count": 3,
@@ -3576,6 +3592,7 @@
     },
     {
       "name": "豪门总裁",
+      "channel": "女频",
       "trend": {
         "new_count": 0,
         "dropped_count": 0,
@@ -3790,6 +3807,7 @@
     },
     {
       "name": "民国言情",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,

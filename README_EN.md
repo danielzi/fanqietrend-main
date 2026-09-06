@@ -2,7 +2,7 @@
 
 [![中文](https://img.shields.io/badge/lang-中文-red)](README.md)
 
-> 👗 Focused exclusively on **Fanqie Novel's Female Category (女频)**, featuring daily automated tracking of new book rankings and AI-powered trend analysis, deployed as a premium online dashboard.
+> 👗 Focused on **Fanqie Novel's new-book rankings across ALL categories (Male 男频 + Female 女频)**, featuring daily automated tracking and AI-powered trend analysis, deployed as a premium online dashboard.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🕷️ Auto Scraping | Daily automated scraping of Top 30 new books across all sub-categories within Fanqie's Female section |
+| 🕷️ Auto Scraping | Daily automated scraping of Top 30 new books across all sub-categories in both Male (19) and Female (18) channels |
 | 📊 Trend Analysis | Automatic day-over-day comparison: new entries / dropped / rank changes / readership growth |
 | 🤖 AI Summary | OpenAI-compatible API integration for per-category market trend analysis |
 | 🖥️ Dashboard | Dark editorial-style dashboard with typewriter animation and waterfall book cards |
@@ -57,7 +57,7 @@ Go to repo → **Settings** → **Secrets and variables** → **Actions** → **
 
 1. Go to repo → **Actions** → Select **Daily Fanqie Rank Scraper** on the left
 2. Click **Run workflow** → **Run workflow** on the top-right
-3. Wait for the workflow to complete (~3–5 minutes)
+3. Wait for the workflow to complete (~6–10 minutes for ~37 categories across both channels)
 
 After a successful run, data files will be generated in the `data/` directory. Open the GitHub Pages link to view your dashboard.
 
@@ -112,7 +112,8 @@ FanqieRankTracker/
 ├── scripts/
 │   └── build_latest.py         # Trend comparison + AI analysis build script
 ├── data/
-│   ├── fanqie_female_new_ranks_YYYYMMDD.json  # Daily raw snapshots
+│   ├── fanqie_all_new_ranks_YYYYMMDD.json     # Daily raw snapshots (both channels)
+│   ├── fanqie_female_new_ranks_YYYYMMDD.json  # Legacy female-only snapshots (history kept)
 │   ├── latest_ranks.json       # Latest aggregated data (dashboard source)
 │   └── trends/
 │       └── YYYY-MM-DD.json     # Trend archives
@@ -164,9 +165,9 @@ Yes! The system will automatically fall back to rule-based summaries (e.g., "3 n
 </details>
 
 <details>
-<summary><b>Q: Can I track other rankings (e.g., male-oriented)?</b></summary>
+<summary><b>Q: Can I track only one channel?</b></summary>
 
-Yes, modify the `init_url` variable in `scrape_fanqie_ranks.py` to point to the desired ranking page URL.
+Yes, tweak the category extraction regex `/^\/rank\/([01])_1_(\d+)$/` in `scrape_fanqie_ranks.py` (first digit is the channel: 0 = female, 1 = male). Legacy female-only history stays fully compatible — the build script and frontend automatically handle both snapshot formats.
 
 </details>
 

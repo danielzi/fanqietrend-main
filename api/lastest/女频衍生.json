@@ -1,9 +1,11 @@
 {
   "type": "女频衍生",
+  "channel": "女频",
   "date": "2026-09-06",
   "prev_date": "2026-09-05",
   "category": {
     "name": "女频衍生",
+    "channel": "女频",
     "trend": {
       "new_count": 1,
       "dropped_count": 1,
@@ -222,6 +224,7 @@
   "categories": [
     {
       "name": "女频衍生",
+      "channel": "女频",
       "trend": {
         "new_count": 1,
         "dropped_count": 1,

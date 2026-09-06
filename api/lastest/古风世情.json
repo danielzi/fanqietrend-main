@@ -1,9 +1,11 @@
 {
   "type": "古风世情",
+  "channel": "女频",
   "date": "2026-09-06",
   "prev_date": "2026-09-05",
   "category": {
     "name": "古风世情",
+    "channel": "女频",
     "trend": {
       "new_count": 3,
       "dropped_count": 2,
@@ -232,6 +234,7 @@
   "categories": [
     {
       "name": "古风世情",
+      "channel": "女频",
       "trend": {
         "new_count": 3,
         "dropped_count": 2,

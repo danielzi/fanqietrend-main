@@ -2,7 +2,7 @@
 
 [![English](https://img.shields.io/badge/lang-English-blue)](README_EN.md)
 
-> 👗 专注于**番茄小说女频新书榜**，每日自动追踪排行数据并结合 AI 生成趋势分析，部署为精美的在线看板。
+> 👗 专注于**番茄小说新书榜（男频 + 女频全分类）**，每日自动追踪排行数据并结合 AI 生成趋势分析，部署为精美的在线看板。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 功能 | 说明 |
 |------|------|
-| 🕷️ 自动爬取 | 每日定时抓取番茄女性频道各个分类的新书榜 Top 30 |
+| 🕷️ 自动爬取 | 每日定时抓取番茄小说男频 + 女频各分类新书榜 Top 30（男频 19 类 + 女频 18 类） |
 | 📊 趋势对比 | 自动对比相邻两天数据：新上榜 / 掉榜 / 排名变化 / 阅读量增长 |
 | 🤖 AI 风向分析 | 接入 OpenAI 兼容 API，按分类生成市场趋势速评 |
 | 🧭 类型风向标 | 独立趋势页聚合多日数据，用 AI 总结古风言情等综合赛道、具体热门分类和高频题材；未配置 API 时自动规则兜底 |
@@ -59,7 +59,7 @@
 
 1. 进入仓库 → **Actions** → 左侧选择 **Daily Fanqie Rank Scraper**
 2. 点击右上角 **Run workflow** → **Run workflow**
-3. 等待 Workflow 运行完成（约 3–5 分钟）
+3. 等待 Workflow 运行完成（全频道共约 37 个分类，约 6–10 分钟）
 
 运行成功后，`data/` 目录下会自动生成数据文件，打开 GitHub Pages 链接即可看到看板。
 
@@ -81,11 +81,14 @@ GitHub Actions 已配置为 **每天 UTC 00:00（北京时间 08:00）** 自动�
 | 全量数据 | `api/lastest/all.json` | `type=all`，返回全部分类、趋势和书籍 |
 | 单类型数据 | `api/lastest/<类型>.json` | 返回指定类型的数据，例如 `api/lastest/古风世情.json` |
 
+> 分类唯一键规则：女频分类直接使用分类名（如 `古风世情`）；男频分类加 `男频·` 前缀（如 `男频·科幻末世`、`男频·战神赘婿`），避免与女频同名分类（科幻末世 / 游戏体育 / 悬疑脑洞）冲突。对应接口文件名为 `api/lastest/男频_科幻末世.json`（前缀中的 `·` 转为 `_`）。
+
 示例：
 
 ```bash
 curl https://<你的用户名>.github.io/FanqieRankTracker/api/lastest/all.json
 curl https://<你的用户名>.github.io/FanqieRankTracker/api/lastest/古风世情.json
+curl https://<你的用户名>.github.io/FanqieRankTracker/api/lastest/男频_科幻末世.json
 ```
 
 ---
@@ -135,7 +138,8 @@ FanqieRankTracker/
 ├── scripts/
 │   └── build_latest.py         # 趋势对比 + AI 分析构建脚本
 ├── data/
-│   ├── fanqie_female_new_ranks_YYYYMMDD.json  # 每日原始快照
+│   ├── fanqie_all_new_ranks_YYYYMMDD.json     # 每日原始快照（男频+女频全分类）
+│   ├── fanqie_female_new_ranks_YYYYMMDD.json  # 旧版女频快照（历史数据保留）
 │   ├── latest_ranks.json       # 最新聚合数据（看板数据源）
 │   ├── market_summary.json     # 全站热点 AI/规则总结
 │   └── trends/
@@ -191,9 +195,9 @@ FanqieRankTracker/
 </details>
 
 <details>
-<summary><b>Q: 可以换成男频或其他榜单吗？</b></summary>
+<summary><b>Q: 可以只抓女频或男频吗？</b></summary>
 
-可以，修改 `scrape_fanqie_ranks.py` 中的 `init_url` 变量，将 URL 改为目标榜单的地址即可。
+可以，修改 `scrape_fanqie_ranks.py` 中的分类提取正则 `/^\/rank\/([01])_1_(\d+)$/`（第一位为频道：0=女频，1=男频），保留需要的频道即可。历史女频数据已完整保留，新旧快照在构建与前端均自动兼容。
 
 </details>
 

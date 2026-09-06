@@ -1,6 +1,6 @@
 """
 构建 latest_ranks.json：
-1. 加载最近两天的 JSON 快照
+1. 加载最近两天的 JSON 快照（兼容旧版女频快照与新版全频道快照）
 2. 按分类对比趋势（新上榜/掉榜/排名变化/阅读量变化）
 3. 可选调用 Gemini Flash 生成 AI 总结
 4. 输出 latest_ranks.json + trends/YYYY-MM-DD.json
@@ -12,6 +12,34 @@ import glob
 import sys
 import argparse
 from urllib.parse import quote
+
+# 分类唯一键规则：女频沿用纯分类名（兼容历史数据），
+# 男频加前缀，避免与女频同名分类（科幻末世/游戏体育/悬疑脑洞）冲突
+MALE_KEY_PREFIX = "男频·"
+
+
+def cat_channel(cat: dict) -> str:
+    """读取分类所属频道；旧版女频快照无 channel 字段，默认女频。"""
+    return cat.get("channel") or "女频"
+
+
+def cat_key(cat: dict) -> str:
+    """分类在趋势字典/API 类型中的唯一键。"""
+    name = cat.get("name", "")
+    if cat_channel(cat) == "男频":
+        return f"{MALE_KEY_PREFIX}{name}"
+    return name
+
+
+# 路径安全：分类名来自站点抓取、日期字段来自快照内容，均属外部输入，
+# 拼接进文件路径前必须校验，拒绝路径分隔符与 '..' 等穿越成分
+SAFE_COMPONENT_RE = re.compile(r"^[\w\u4e00-\u9fff\-]+$")
+
+
+def assert_safe_component(component: str, what: str) -> str:
+    if not component or ".." in component or not SAFE_COMPONENT_RE.match(component):
+        raise ValueError(f"不安全的{what}: {component!r}")
+    return component
 
 
 def parse_reads(reads_str: str) -> float:
@@ -34,6 +62,24 @@ def format_reads_change(diff: float) -> str:
     return f"{'+' if diff > 0 else ''}{int(diff)}"
 
 
+def find_snapshots(data_dir: str) -> list:
+    """查找全部快照文件（新版全频道 + 旧版女频），同一天两者并存时优先新版，按日期升序返回。"""
+    by_date = {}
+    patterns = [
+        ("fanqie_all_new_ranks_*.json", 0),      # 新版：男频+女频
+        ("fanqie_female_new_ranks_*.json", 1),   # 旧版：仅女频（历史数据）
+    ]
+    for pattern, priority in patterns:
+        for path in glob.glob(os.path.join(data_dir, pattern)):
+            m = re.search(r"(\d{8})", os.path.basename(path))
+            if not m:
+                continue
+            date_compact = m.group(1)
+            if date_compact not in by_date or priority < by_date[date_compact][0]:
+                by_date[date_compact] = (priority, path)
+    return [by_date[d][1] for d in sorted(by_date)]
+
+
 def load_snapshot(path: str) -> dict:
     """加载一个 JSON 快照文件。"""
     with open(path, "r", encoding="utf-8") as f:
@@ -43,9 +89,9 @@ def load_snapshot(path: str) -> dict:
 def compare_categories(today_cats: list, prev_cats: list) -> dict:
     """
     对比两天的分类数据，返回每个分类的趋势信息。
-    key = 分类名, value = trend dict
+    key = 分类唯一键（女频为分类名，男频带前缀）, value = trend dict
     """
-    # 构建 prev 的索引: cat_name -> {url: (rank, reads_str, title)}
+    # 构建 prev 的索引: cat_key -> {url: (rank, reads_str, title)}
     prev_index = {}
     for cat in prev_cats:
         url_map = {}
@@ -56,12 +102,12 @@ def compare_categories(today_cats: list, prev_cats: list) -> dict:
                 "title": book.get("title", "未知"),
                 "intro": book.get("intro", "暂无简介"),
             }
-        prev_index[cat["name"]] = url_map
+        prev_index[cat_key(cat)] = url_map
 
     trends = {}
     for cat in today_cats:
-        cat_name = cat["name"]
-        prev_urls = prev_index.get(cat_name, {})
+        key = cat_key(cat)
+        prev_urls = prev_index.get(key, {})
         today_books = cat.get("books", [])
 
         new_books = []
@@ -114,7 +160,7 @@ def compare_categories(today_cats: list, prev_cats: list) -> dict:
             key=lambda x: parse_reads(x["growth"].replace("+", "")), reverse=True
         )
 
-        trends[cat_name] = {
+        trends[key] = {
             "new_count": len(new_books),
             "dropped_count": len(dropped_books),
             "new_books": new_books[:5],
@@ -229,6 +275,13 @@ GENRE_GROUPS = [
     {"name": "年代民国", "categories": ["年代", "民国言情"]},
     {"name": "娱乐星光", "categories": ["星光璀璨"]},
     {"name": "游戏体育", "categories": ["游戏体育"]},
+    # 男频赛道（分类键带男频·前缀）
+    {"name": "男频都市热血", "categories": ["男频·都市日常", "男频·都市修真", "男频·都市高武", "男频·都市种田", "男频·都市脑洞", "男频·战神赘婿"]},
+    {"name": "男频玄幻奇幻", "categories": ["男频·传统玄幻", "男频·玄幻脑洞", "男频·西方奇幻"]},
+    {"name": "男频仙侠", "categories": ["男频·东方仙侠"]},
+    {"name": "男频历史军旅", "categories": ["男频·历史古代", "男频·历史脑洞", "男频·抗战谍战"]},
+    {"name": "男频科幻悬疑", "categories": ["男频·科幻末世", "男频·悬疑脑洞", "男频·悬疑灵异"]},
+    {"name": "男频衍生竞技", "categories": ["男频·动漫衍生", "男频·男频衍生", "男频·游戏体育"]},
 ]
 
 MARKET_KEYWORDS = [
@@ -238,6 +291,9 @@ MARKET_KEYWORDS = [
     "甜宠", "双洁", "强制爱", "无CP", "末世", "废土", "天灾", "囤货", "异能",
     "国运", "星际", "修仙", "玄学", "无限流", "悬疑", "直播", "综艺", "娱乐圈",
     "校园", "暗恋", "青梅竹马", "民国", "兽世", "远古", "基建",
+    # 男频高频题材
+    "赘婿", "战神", "神豪", "高武", "修真", "仙侠", "长生", "苟道",
+    "兵王", "谍战", "御兽", "签到",
 ]
 
 
@@ -400,8 +456,9 @@ def build_lastest_api(output: dict, base_dir: str):
 
     used_filenames = {"all"}
     for cat in categories:
-        type_name = cat.get("name", "")
+        type_name = cat_key(cat)
         filename = api_type_filename(type_name)
+        assert_safe_component(filename, "API 类型文件名")
         base_filename = filename
         suffix = 2
         while filename in used_filenames:
@@ -411,6 +468,7 @@ def build_lastest_api(output: dict, base_dir: str):
 
         payload = {
             "type": type_name,
+            "channel": cat_channel(cat),
             "date": date,
             "prev_date": prev_date,
             "category": cat,
@@ -421,6 +479,7 @@ def build_lastest_api(output: dict, base_dir: str):
         url = f"api/lastest/{quote(filename)}.json"
         types.append({
             "type": type_name,
+            "channel": cat_channel(cat),
             "url": url,
             "book_count": len(cat.get("books", [])),
         })
@@ -655,7 +714,7 @@ def build_rule_market_summary(period_label: str, hot_genres: list,
 
 def build_market_summary_payload(output: dict, trends_dir: str) -> dict:
     """生成全站热点统计和规则兜底总结。"""
-    categories = [cat.get("name", "") for cat in output.get("categories", [])]
+    categories = [cat_key(cat) for cat in output.get("categories", [])]
     trend_rows = load_trend_rows(trends_dir)
     periods = {}
 
@@ -711,7 +770,7 @@ def build_market_ai_prompt(payload: dict) -> str:
             f"- 规则兜底: {data['fallback_summary']}"
         )
 
-    return f"""你是一位网文市场编辑，请根据番茄女频新书榜的统计结果，为每个周期生成一段全站热点判断。
+    return f"""你是一位网文市场编辑，请根据番茄小说新书榜（男频+女频全分类）的统计结果，为每个周期生成一段全站热点判断。
 
 {chr(10).join(sections)}
 
@@ -813,18 +872,18 @@ def generate_ai_summaries(categories: list, trends: dict,
     skipped = 0
 
     for cat in categories:
-        cat_name = cat["name"]
-        if cat_name not in trends:
+        key = cat_key(cat)
+        if key not in trends:
             continue
 
         if not force:
-            existing_summary = existing_trends.get(cat_name, {}).get("summary", "")
+            existing_summary = existing_trends.get(key, {}).get("summary", "")
             if existing_summary and not is_rule_summary(existing_summary):
-                trends[cat_name]["summary"] = existing_summary
+                trends[key]["summary"] = existing_summary
                 skipped += 1
                 continue
 
-        pending.append((cat_name, cat, trends[cat_name]))
+        pending.append((key, cat, trends[key]))
 
     if skipped > 0:
         print(f"  ⏭️  跳过 {skipped} 个已有 AI 总结的分类")
@@ -958,10 +1017,8 @@ def main():
     trends_dir = os.path.join(data_dir, "trends")
     os.makedirs(trends_dir, exist_ok=True)
 
-    # 查找 JSON 快照文件
-    snapshots = sorted(
-        glob.glob(os.path.join(data_dir, "fanqie_female_new_ranks_*.json"))
-    )
+    # 查找 JSON 快照文件（兼容新版全频道与旧版女频快照）
+    snapshots = find_snapshots(data_dir)
 
     if not snapshots:
         print("未找到任何 JSON 快照文件。请先运行迁移脚本或爬虫。")
@@ -970,8 +1027,17 @@ def main():
     # 根据 --date 参数选择目标快照
     if args.date:
         target_date_compact = args.date.replace("-", "")
-        target_path = os.path.join(
-            data_dir, f"fanqie_female_new_ranks_{target_date_compact}.json"
+        # --date 是 CLI 输入且会拼进快照路径，必须校验格式防目录穿越
+        if not re.fullmatch(r"\d{8}", target_date_compact):
+            print(f"❌ 非法日期参数（应为 YYYYMMDD 或 YYYY-MM-DD）: {args.date}")
+            sys.exit(1)
+        # 优先新版全频道快照，回退旧版女频快照
+        candidates = [
+            os.path.join(data_dir, f"fanqie_all_new_ranks_{target_date_compact}.json"),
+            os.path.join(data_dir, f"fanqie_female_new_ranks_{target_date_compact}.json"),
+        ]
+        target_path = next(
+            (p for p in candidates if os.path.exists(p)), candidates[0]
         )
         if not os.path.exists(target_path):
             print(f"❌ 未找到 {args.date} 的快照文件: {target_path}")
@@ -984,7 +1050,12 @@ def main():
         target_idx = len(snapshots) - 1
 
     latest_data = load_snapshot(latest_path)
-    print(f"目标快照: {os.path.basename(latest_path)} ({latest_data['date']})")
+    latest_date = str(latest_data.get("date", ""))
+    # 快照内嵌日期会拼进 trends 存档路径，必须先校验格式
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", latest_date):
+        print(f"❌ 快照内嵌日期字段非法: {latest_date!r}")
+        sys.exit(1)
+    print(f"目标快照: {os.path.basename(latest_path)} ({latest_date})")
 
     # 加载前一天的快照（如果有）
     prev_data = None
@@ -1021,7 +1092,7 @@ def main():
     else:
         print("仅有一天数据，无法生成趋势对比。")
         trends = {
-            cat["name"]: {
+            cat_key(cat): {
                 "new_count": 0,
                 "dropped_count": 0,
                 "new_books": [],
@@ -1073,7 +1144,8 @@ def main():
         cat_name = cat["name"]
         cat_output = {
             "name": cat_name,
-            "trend": trends.get(cat_name, {}),
+            "channel": cat_channel(cat),
+            "trend": trends.get(cat_key(cat), {}),
             "books": cat.get("books", []),
         }
         output["categories"].append(cat_output)

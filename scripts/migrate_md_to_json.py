@@ -85,6 +85,10 @@ def main():
     for md_path in md_files:
         basename = os.path.basename(md_path)
         json_name = basename.replace(".md", ".json")
+        # 输出文件名拼进写入路径，校验其符合预期格式，防异常文件名导致路径穿越
+        if not re.fullmatch(r"fanqie_female_new_ranks_\d{8}\.json", json_name):
+            print(f"跳过异常文件名: {basename}")
+            continue
         json_path = os.path.join(data_dir, json_name)
 
         if os.path.exists(json_path):
